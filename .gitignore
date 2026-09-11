@@ -1,0 +1,37 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# env files (never committed)
+.env
+.env.*
+!.env.example
+
+# EPANET / WNTR scratch output
+*.rpt
+*.bin
+temp.inp
+
+# data that must not enter git (surrogate datasets, demo recordings)
+data/surrogate/
+data/reports/
+data/demo/*.mp4
+
+# notebooks: keep outputs as evidence, ignore checkpoints
+.ipynb_checkpoints/
+
+# node (apps/console, Stage 5)
+node_modules/
+.next/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

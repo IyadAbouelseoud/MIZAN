@@ -1,0 +1,94 @@
+# MIZAN Stage 0 stack. Works with no .env file; every host port and credential has a dev default.
+name: mizan
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://${POSTGRES_USER:-mizan}:${POSTGRES_PASSWORD:-mizan-dev-password}@db:5432/${POSTGRES_DB:-mizan}
+  NETWORK_NAME: ${NETWORK_NAME:-Net3}
+  NETWORK_INP: ${NETWORK_INP:-data/networks/Net3.inp}
+  API_URL: http://api:8000
+  N8N_URL: http://n8n:5678
+
+services:
+  db:
+    image: timescale/timescaledb:2.21.1-pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mizan}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mizan-dev-password}
+      POSTGRES_DB: ${POSTGRES_DB:-mizan}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP check: the temporary init-phase server is socket-only, so this only passes once init scripts ran
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-mizan} -d ${POSTGRES_DB:-mizan}"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  twin:
+    build: .
+    image: mizan/twin:0.0.1
+    command: ["sleep", "infinity"]
+    environment:
+      <<: *app-env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build: .
+    image: mizan/twin:0.0.1
+    environment:
+      <<: *app-env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  n8n:
+    image: n8nio/n8n:1.110.1
+    environment:
+      N8N_PORT: "5678"
+      N8N_HOST: localhost
+      N8N_PROTOCOL: http
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:-mizan-dev-n8n-encryption-key}
+      N8N_SECURE_COOKIE: "false"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-Asia/Riyadh}
+      WEBHOOK_URL: http://localhost:${N8N_PORT:-5678}/
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n:/home/node/workflows
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5678/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+
+  # flower:   # Stage 4 (W8–W10) — Flower server + 2 clients (Ministry / NWC), FedAvg + DP-SGD + SecAgg
+  #   build: .
+  #   command: ["python", "-m", "packages.federated.server"]
+  #
+  # console:  # Stage 5 (W9–W12) — Next.js 14 + Tailwind + shadcn/ui operator console on port 3000
+  #   build: ./apps/console
+  #   ports: ["${CONSOLE_PORT:-3000}:3000"]
+
+volumes:
+  db_data:
+  n8n_data:
