@@ -1,5 +1,5 @@
 # Normalize to LF on every platform so a fresh clone on Windows still runs make/compose/scripts.
 * text=auto eol=lf
-*.inp text eol=lf
+*.inp binary
 *.png binary
 *.mp4 binary
